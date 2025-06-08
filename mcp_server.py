@@ -1,6 +1,12 @@
+"""FastAPI-based implementation of the MCP SSE server."""
+
+import asyncio
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+
+app = FastAPI()
 
 
 def echo(message: str) -> str:
@@ -18,51 +24,32 @@ def add_numbers(a: float, b: float) -> float:
     return a + b
 
 
-class MCPHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        if parsed.path != '/sse':
-            self.send_error(404)
-            return
+def _format_sse(data: str) -> str:
+    """Format a string as an SSE event."""
+    return f"data: {data}\n\n"
 
-        params = parse_qs(parsed.query)
-        fn = params.get('fn', [''])[0]
 
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/event-stream')
-        self.send_header('Cache-Control', 'no-cache')
-        self.send_header('Connection', 'keep-alive')
-        self.end_headers()
+@app.get("/sse")
+async def sse(fn: str, msg: str = "", a: float = 0.0, b: float = 0.0):
+    """Serve different functions over server-sent events."""
 
-        if fn == 'echo':
-            message = params.get('msg', [''])[0]
-            result = echo(message)
-            self.wfile.write(f"data: {result}\n\n".encode('utf-8'))
-        elif fn == 'time':
-            # stream three updates one second apart
+    async def event_stream():
+        if fn == "echo":
+            yield _format_sse(echo(msg))
+        elif fn == "time":
             for _ in range(3):
-                result = current_time()
-                self.wfile.write(f"data: {result}\n\n".encode('utf-8'))
-                self.wfile.flush()
-                time.sleep(1)
-        elif fn == 'sum':
-            try:
-                a = float(params.get('a', ['0'])[0])
-                b = float(params.get('b', ['0'])[0])
-                result = add_numbers(a, b)
-                self.wfile.write(f"data: {result}\n\n".encode('utf-8'))
-            except ValueError:
-                self.wfile.write(b"data: invalid parameters\n\n")
+                yield _format_sse(current_time())
+                await asyncio.sleep(1)
+        elif fn == "sum":
+            result = add_numbers(a, b)
+            yield _format_sse(str(result))
         else:
-            self.wfile.write(b"data: unknown function\n\n")
+            yield _format_sse("unknown function")
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-def run(server_class=HTTPServer, handler_class=MCPHandler, port: int = 8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print(f"MCP SSE server running on port {port}")
-    httpd.serve_forever()
+if __name__ == "__main__":
+    import uvicorn
 
-
-if __name__ == '__main__':
-    run()
+    uvicorn.run("mcp_server:app", host="0.0.0.0", port=8000)

@@ -1,18 +1,22 @@
 # codex-sample
 
-This project provides a minimal example of an MCP (Message Control Protocol) server that streams
-results using server-sent events (SSE). It includes three simple example
-functions and exposes them through an HTTP endpoint.
+This project provides a minimal example of an MCP (Message Control Protocol) server built with
+[FastAPI](https://fastapi.tiangolo.com/) that streams results using Server-Sent Events (SSE). It
+includes three simple example functions and exposes them through an HTTP endpoint.
 
 ## Running the server
 
-Run the server with Python 3.12 or later:
+Install the dependencies and run the server with Python 3.12 or later:
+
+```bash
+pip install -r requirements.txt
+```
 
 ```bash
 python3 mcp_server.py
 ```
 
-The server listens on port `8000` by default.
+The server listens on port `8000` by default and uses `uvicorn` under the hood.
 
 ## Example endpoints
 
